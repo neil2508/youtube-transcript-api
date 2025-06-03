@@ -1,32 +1,34 @@
 from flask import Flask, request, jsonify
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
+from urllib.parse import urlparse, parse_qs
 
 app = Flask(__name__)
 
-@app.route("/", methods=["GET"])
-def home():
-    return "✅ Your app is running."
-
-@app.route("/transcript", methods=["GET"])
+@app.route("/transcript", methods=["POST"])
 def get_transcript():
-    video_id = request.args.get("video_id")
-    if not video_id:
-        return jsonify({"error": "Missing video_id parameter"}), 400
+    data = request.json
+    youtube_url = data.get("url")
+
+    if not youtube_url:
+        return jsonify({"error": "Missing 'url' in request body"}), 400
 
     try:
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        full_text = " ".join([entry["text"] for entry in transcript])
+        video_id = extract_video_id(youtube_url)
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+        full_text = " ".join([segment["text"] for segment in transcript_list])
         return jsonify({"transcript": full_text})
     except TranscriptsDisabled:
-        return jsonify({"error": "Transcripts are disabled for this video."}), 403
+        return jsonify({"error": "Transcripts are disabled for this video"}), 403
     except NoTranscriptFound:
-        return jsonify({"error": "No transcript available for this video."}), 404
+        return jsonify({"error": "No transcript available"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-import os
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))  # default to 8000 if not set
-    app.run(host="0.0.0.0", port=port)
-
+def extract_video_id(url):
+    parsed_url = urlparse(url)
+    if parsed_url.hostname in ["www.youtube.com", "youtube.com"]:
+        return parse_qs(parsed_url.query).get("v", [None])[0]
+    elif parsed_url.hostname == "youtu.be":
+        return parsed_url.path[1:]
+    else:
+        raise ValueError("Invalid YouTube URL format")
