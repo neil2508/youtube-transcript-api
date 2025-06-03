@@ -3,6 +3,10 @@ from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, No
 
 app = Flask(__name__)
 
+@app.route("/", methods=["GET"])
+def home():
+    return "✅ Your app is running."
+
 @app.route("/transcript", methods=["GET"])
 def get_transcript():
     video_id = request.args.get("video_id")
