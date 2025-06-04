@@ -3,9 +3,11 @@ from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, No
 from urllib.parse import urlparse, parse_qs
 
 app = Flask(__name__)
+
 @app.route("/", methods=["GET"])
 def index():
     return "YouTube Transcript API is running"
+
 @app.route("/transcript", methods=["POST"])
 def get_transcript():
     data = request.json
@@ -34,6 +36,6 @@ def extract_video_id(url):
         return parsed_url.path[1:]
     else:
         raise ValueError("Invalid YouTube URL format")
-        if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
 
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
