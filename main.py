@@ -1,6 +1,9 @@
 from flask import Flask, request, jsonify
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 from urllib.parse import urlparse, parse_qs
+import subprocess
+import json
+import os
 
 app = Flask(__name__)
 
@@ -18,13 +21,38 @@ def get_transcript():
 
     try:
         video_id = extract_video_id(youtube_url)
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-        full_text = " ".join([segment["text"] for segment in transcript_list])
+
+        # Use yt-dlp to get transcript using uploaded cookies
+        result = subprocess.run([
+            "yt-dlp",
+            "--cookies", "www.youtube.com_cookies.txt",
+            "--write-auto-sub",
+            "--skip-download",
+            "--sub-lang", "en",
+            "--sub-format", "json3",
+            "--output", "%(id)s.%(ext)s",
+            f"https://www.youtube.com/watch?v={video_id}"
+        ], capture_output=True, text=True)
+
+        # Expect a .json3 subtitle file
+        subtitle_file = f"{video_id}.en.json3"
+        if not os.path.exists(subtitle_file):
+            return jsonify({"error": "Subtitle file not found"}), 404
+
+        with open(subtitle_file, "r", encoding="utf-8") as f:
+            caption_data = json.load(f)
+
+        events = caption_data.get("events", [])
+        full_text = " ".join([
+            seg["segs"][0]["utf8"]
+            for seg in events if "segs" in seg and seg["segs"]
+        ])
+
+        # Clean up
+        os.remove(subtitle_file)
+
         return jsonify({"transcript": full_text})
-    except TranscriptsDisabled:
-        return jsonify({"error": "Transcripts are disabled for this video"}), 403
-    except NoTranscriptFound:
-        return jsonify({"error": "No transcript available"}), 404
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
